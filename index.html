@@ -1,0 +1,245 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>يومي | YAWMI - حساب السعرات</title>
+<style>
+:root{
+  --purple:#7954c8;
+  --light:#f5f0ff;
+  --dark:#30254b;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:#faf8ff;
+  color:var(--dark);
+  font-family:Tahoma,Arial,sans-serif;
+}
+header{
+  background:linear-gradient(135deg,#7954c8,#ae8de7);
+  color:white;
+  padding:32px 20px;
+  text-align:center;
+  border-radius:0 0 30px 30px;
+}
+header h1{font-size:32px;margin:0}
+header p{opacity:.9}
+main{max-width:650px;margin:auto;padding:18px}
+.card{
+  background:white;
+  border-radius:22px;
+  padding:22px;
+  margin:16px 0;
+  box-shadow:0 5px 25px #6042a014;
+}
+h2{font-size:19px;margin-top:0}
+.circle{
+  width:190px;height:190px;
+  border-radius:50%;
+  background:conic-gradient(
+    var(--purple) 0%,
+    var(--purple) 0%,
+    #eee7fa 0%
+  );
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:20px auto;
+}
+.inner{
+  background:white;
+  width:155px;height:155px;
+  border-radius:50%;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+}
+.inner strong{font-size:32px}
+.inner small{color:#8b829a}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{
+  background:var(--light);
+  padding:14px 5px;
+  text-align:center;
+  border-radius:14px;
+}
+.stat strong{display:block;font-size:19px;margin-bottom:7px}
+.stat span{font-size:12px}
+input,select,button{
+  width:100%;
+  padding:14px;
+  border-radius:12px;
+  font-size:15px;
+  margin:7px 0;
+  font-family:inherit;
+}
+input,select{border:1px solid #e0d8ee;background:white}
+button{
+  background:var(--purple);
+  color:white;
+  border:none;
+  font-weight:bold;
+  cursor:pointer;
+}
+button:active{opacity:.8}
+.meal{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  padding:13px 0;
+  border-bottom:1px solid #eee;
+}
+.meal small{display:block;color:#888;margin-top:5px}
+.delete{
+  background:#fff0f0;
+  color:#b62e45;
+  width:auto;
+  padding:8px 12px;
+}
+footer{text-align:center;padding:25px;color:#999;font-size:12px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>يومي 💜</h1>
+  <p>YAWMI | رحلتك الصحية يوم بيوم</p>
+</header>
+
+<main>
+<section class="card">
+  <h2>🌸 سعراتك اليوم</h2>
+  <div class="circle" id="circle">
+    <div class="inner">
+      <strong id="consumed">0</strong>
+      <small>سعرة مستهلكة</small>
+    </div>
+  </div>
+  <div class="stats">
+    <div class="stat"><strong id="target">1500</strong><span>الهدف</span></div>
+    <div class="stat"><strong id="eaten">0</strong><span>المستهلك</span></div>
+    <div class="stat"><strong id="remaining">1500</strong><span>المتبقي</span></div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>🎯 هدف السعرات اليومي</h2>
+  <input id="goal" type="number" min="1" value="1500">
+  <button onclick="saveGoal()">حفظ الهدف</button>
+  <small>1500 قيمة تجريبية ويمكن تعديلها حسب احتياجك.</small>
+</section>
+
+<section class="card">
+  <h2>🍽️ أضيفي وجبتك</h2>
+  <input id="food" placeholder="اسم الأكلة مثل: توست وجبن">
+  <input id="calories" type="number" min="1" placeholder="عدد السعرات">
+  <select id="mealType">
+    <option>الفطور</option>
+    <option>الغداء</option>
+    <option>العشاء</option>
+    <option>سناك</option>
+  </select>
+  <button onclick="addMeal()">+ إضافة الوجبة</button>
+</section>
+
+<section class="card">
+  <h2>📋 سجل وجبات اليوم</h2>
+  <div id="mealList"></div>
+</section>
+</main>
+
+<footer>YAWMI © 2026 | يومي 💜</footer>
+
+<script>
+const today=()=>new Date().toLocaleDateString("en-CA");
+const storageKey=()=> "yawmi_meals_"+today();
+let meals=JSON.parse(localStorage.getItem(storageKey())||"[]");
+let goal=Number(localStorage.getItem("yawmi_goal")||1500);
+
+document.getElementById("goal").value=goal;
+
+function saveGoal(){
+  const value=Number(document.getElementById("goal").value);
+  if(!Number.isFinite(value)||value<=0){
+    alert("أدخلي هدف سعرات صحيح");
+    return;
+  }
+  goal=value;
+  localStorage.setItem("yawmi_goal",goal);
+  render();
+}
+
+function addMeal(){
+  const food=document.getElementById("food").value.trim();
+  const calories=Number(document.getElementById("calories").value);
+  const type=document.getElementById("mealType").value;
+
+  if(!food||!Number.isFinite(calories)||calories<=0){
+    alert("اكتبي اسم الأكلة وسعراتها بشكل صحيح");
+    return;
+  }
+
+  meals.push({id:crypto.randomUUID(),food,calories,type});
+  localStorage.setItem(storageKey(),JSON.stringify(meals));
+  document.getElementById("food").value="";
+  document.getElementById("calories").value="";
+  render();
+}
+
+function deleteMeal(id){
+  meals=meals.filter(m=>m.id!==id);
+  localStorage.setItem(storageKey(),JSON.stringify(meals));
+  render();
+}
+
+function render(){
+  const total=meals.reduce((sum,m)=>sum+m.calories,0);
+  const remaining=goal-total;
+  const percentage=Math.min(100,Math.max(0,total/goal*100));
+
+  document.getElementById("consumed").textContent=total;
+  document.getElementById("eaten").textContent=total;
+  document.getElementById("target").textContent=goal;
+  document.getElementById("remaining").textContent=remaining;
+
+  document.getElementById("circle").style.background=
+    `conic-gradient(#7954c8 ${percentage}%,#eee7fa ${percentage}%)`;
+
+  const list=document.getElementById("mealList");
+  list.replaceChildren();
+
+  if(!meals.length){
+    list.textContent="ما أضفتِ وجبات اليوم بعد 💜";
+    return;
+  }
+
+  meals.forEach(m=>{
+    const row=document.createElement("div");
+    row.className="meal";
+
+    const info=document.createElement("div");
+    const name=document.createElement("strong");
+    name.textContent=m.food;
+    const detail=document.createElement("small");
+    detail.textContent=m.type+" • "+m.calories+" سعرة";
+    info.append(name,detail);
+
+    const btn=document.createElement("button");
+    btn.className="delete";
+    btn.textContent="حذف";
+    btn.onclick=()=>deleteMeal(m.id);
+
+    row.append(info,btn);
+    list.appendChild(row);
+  });
+}
+
+render();
+</script>
+</body>
+</html>
