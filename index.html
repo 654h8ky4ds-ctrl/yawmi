@@ -4,7 +4,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>يومي | YAWMI - حساب السعرات</title>
+<title>يومي | YAWMI</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root{
   --purple:#7954c8;
@@ -36,39 +37,6 @@ main{max-width:650px;margin:auto;padding:18px}
   box-shadow:0 5px 25px #6042a014;
 }
 h2{font-size:19px;margin-top:0}
-.circle{
-  width:190px;height:190px;
-  border-radius:50%;
-  background:conic-gradient(
-    var(--purple) 0%,
-    var(--purple) 0%,
-    #eee7fa 0%
-  );
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  margin:20px auto;
-}
-.inner{
-  background:white;
-  width:155px;height:155px;
-  border-radius:50%;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-}
-.inner strong{font-size:32px}
-.inner small{color:#8b829a}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.stat{
-  background:var(--light);
-  padding:14px 5px;
-  text-align:center;
-  border-radius:14px;
-}
-.stat strong{display:block;font-size:19px;margin-bottom:7px}
-.stat span{font-size:12px}
 input,select,button{
   width:100%;
   padding:14px;
@@ -77,7 +45,10 @@ input,select,button{
   margin:7px 0;
   font-family:inherit;
 }
-input,select{border:1px solid #e0d8ee;background:white}
+input,select{
+  border:1px solid #e0d8ee;
+  background:white;
+}
 button{
   background:var(--purple);
   color:white;
@@ -85,7 +56,62 @@ button{
   font-weight:bold;
   cursor:pointer;
 }
-button:active{opacity:.8}
+button:disabled{opacity:.5;cursor:wait}
+.secondary{
+  background:var(--light);
+  color:var(--purple);
+}
+.danger{
+  background:#fff0f0;
+  color:#b62e45;
+}
+.hidden{display:none!important}
+.message{
+  padding:12px;
+  border-radius:12px;
+  background:var(--light);
+  margin:12px 0;
+  line-height:1.8;
+}
+.circle{
+  width:190px;
+  height:190px;
+  border-radius:50%;
+  background:#eee7fa;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:20px auto;
+}
+.inner{
+  background:white;
+  width:155px;
+  height:155px;
+  border-radius:50%;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+}
+.inner strong{font-size:32px}
+.inner small{color:#8b829a}
+.stats{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+}
+.stat{
+  background:var(--light);
+  padding:14px 5px;
+  text-align:center;
+  border-radius:14px;
+}
+.stat strong{
+  display:block;
+  font-size:19px;
+  margin-bottom:7px;
+}
+.stat span{font-size:12px}
 .meal{
   display:flex;
   justify-content:space-between;
@@ -94,14 +120,21 @@ button:active{opacity:.8}
   padding:13px 0;
   border-bottom:1px solid #eee;
 }
-.meal small{display:block;color:#888;margin-top:5px}
+.meal small{
+  display:block;
+  color:#888;
+  margin-top:5px;
+}
 .delete{
-  background:#fff0f0;
-  color:#b62e45;
   width:auto;
   padding:8px 12px;
 }
-footer{text-align:center;padding:25px;color:#999;font-size:12px}
+footer{
+  text-align:center;
+  padding:25px;
+  color:#999;
+  font-size:12px;
+}
 </style>
 </head>
 <body>
@@ -112,109 +145,433 @@ footer{text-align:center;padding:25px;color:#999;font-size:12px}
 </header>
 
 <main>
+
+<section class="card" id="authCard">
+  <h2>💜 أهلاً بك في يومي</h2>
+  <p>سجّل حسابك وابدأ متابعة سعراتك اليومية.</p>
+
+  <input id="email" type="email"
+    placeholder="البريد الإلكتروني" autocomplete="email">
+
+  <input id="password" type="password"
+    placeholder="كلمة المرور (6 أحرف على الأقل)"
+    autocomplete="current-password">
+
+  <button id="loginBtn" onclick="login()">
+    تسجيل الدخول
+  </button>
+
+  <button id="signupBtn" class="secondary"
+    onclick="signup()">
+    إنشاء حساب جديد
+  </button>
+
+  <div id="authMessage" class="message hidden"
+    role="status"></div>
+</section>
+
+<div id="dashboard" class="hidden">
+
+<section class="card">
+  <h2>🌸 حسابي</h2>
+  <p id="userEmail"></p>
+  <button class="danger" onclick="logout()">
+    تسجيل الخروج
+  </button>
+</section>
+
 <section class="card">
   <h2>🌸 سعراتك اليوم</h2>
+
   <div class="circle" id="circle">
     <div class="inner">
       <strong id="consumed">0</strong>
       <small>سعرة مستهلكة</small>
     </div>
   </div>
+
   <div class="stats">
-    <div class="stat"><strong id="target">1500</strong><span>الهدف</span></div>
-    <div class="stat"><strong id="eaten">0</strong><span>المستهلك</span></div>
-    <div class="stat"><strong id="remaining">1500</strong><span>المتبقي</span></div>
+    <div class="stat">
+      <strong id="target">1500</strong>
+      <span>الهدف</span>
+    </div>
+    <div class="stat">
+      <strong id="eaten">0</strong>
+      <span>المستهلك</span>
+    </div>
+    <div class="stat">
+      <strong id="remaining">1500</strong>
+      <span>المتبقي</span>
+    </div>
   </div>
 </section>
 
 <section class="card">
   <h2>🎯 هدف السعرات اليومي</h2>
-  <input id="goal" type="number" min="1" value="1500">
-  <button onclick="saveGoal()">حفظ الهدف</button>
-  <small>1500 قيمة تجريبية ويمكن تعديلها حسب احتياجك.</small>
+
+  <input id="goal" type="number"
+    min="500" max="10000" value="1500">
+
+  <button onclick="saveGoal()">
+    حفظ الهدف
+  </button>
+
+  <small>
+    1500 قيمة تجريبية وليست توصية غذائية شخصية.
+  </small>
 </section>
 
 <section class="card">
-  <h2>🍽️ أضيفي وجبتك</h2>
-  <input id="food" placeholder="اسم الأكلة مثل: توست وجبن">
-  <input id="calories" type="number" min="1" placeholder="عدد السعرات">
+  <h2>🍽️ أضف وجبتك</h2>
+
+  <input id="food" maxlength="200"
+    placeholder="اسم الأكلة مثل: توست وجبن">
+
+  <input id="calories" type="number"
+    min="0.01" step="0.01"
+    placeholder="عدد السعرات">
+
   <select id="mealType">
     <option>الفطور</option>
     <option>الغداء</option>
     <option>العشاء</option>
     <option>سناك</option>
   </select>
-  <button onclick="addMeal()">+ إضافة الوجبة</button>
+
+  <button onclick="addMeal()">
+    + إضافة الوجبة
+  </button>
 </section>
 
 <section class="card">
   <h2>📋 سجل وجبات اليوم</h2>
   <div id="mealList"></div>
 </section>
+
+<div id="appMessage" class="message hidden"
+  role="status"></div>
+
+</div>
 </main>
 
 <footer>YAWMI © 2026 | يومي 💜</footer>
 
 <script>
-const today=()=>new Date().toLocaleDateString("en-CA");
-const storageKey=()=> "yawmi_meals_"+today();
-let meals=JSON.parse(localStorage.getItem(storageKey())||"[]");
-let goal=Number(localStorage.getItem("yawmi_goal")||1500);
+const SUPABASE_URL =
+  "https://nswxyqgrhjnpoiunldgd.supabase.co";
 
-document.getElementById("goal").value=goal;
+const SUPABASE_KEY =
+  "sb_publishable_heDeQ4w50whGXxG3VIsd2A_tsNwY0CN";
 
-function saveGoal(){
-  const value=Number(document.getElementById("goal").value);
-  if(!Number.isFinite(value)||value<=0){
-    alert("أدخلي هدف سعرات صحيح");
+const db = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
+
+let currentUser = null;
+let meals = [];
+let goal = 1500;
+let sessionVersion = 0;
+
+const $ = id => document.getElementById(id);
+
+function showMessage(id,text){
+  const el=$(id);
+  el.textContent=text;
+  el.classList.remove("hidden");
+}
+
+function clearMessage(id){
+  $(id).textContent="";
+  $(id).classList.add("hidden");
+}
+
+function setAuthBusy(busy){
+  $("loginBtn").disabled=busy;
+  $("signupBtn").disabled=busy;
+}
+
+function today(){
+  const d=new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,"0");
+  const day=String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+
+function friendlyError(error){
+  if(!error) return "حدث خطأ غير متوقع.";
+  return error.message || "تعذرت العملية.";
+}
+
+async function signup(){
+  const email=$("email").value.trim();
+  const password=$("password").value;
+
+  if(!email || password.length<6){
+    showMessage("authMessage",
+      "أدخل بريدًا صحيحًا وكلمة مرور من 6 أحرف على الأقل.");
     return;
   }
+
+  setAuthBusy(true);
+  clearMessage("authMessage");
+
+  try{
+    const {data,error}=await db.auth.signUp({
+      email,
+      password,
+      options:{
+        emailRedirectTo:location.origin+
+          location.pathname
+      }
+    });
+
+    if(error) throw error;
+
+    if(data.session){
+      showMessage("authMessage",
+        "تم إنشاء الحساب وتسجيل الدخول.");
+    }else{
+      showMessage("authMessage",
+        "إذا كان البريد مؤهلاً للتسجيل، ستصلك رسالة تأكيد. افتحها ثم سجّل الدخول.");
+    }
+  }catch(error){
+    showMessage("authMessage",friendlyError(error));
+  }finally{
+    setAuthBusy(false);
+  }
+}
+
+async function login(){
+  const email=$("email").value.trim();
+  const password=$("password").value;
+
+  if(!email || !password){
+    showMessage("authMessage",
+      "أدخل البريد الإلكتروني وكلمة المرور.");
+    return;
+  }
+
+  setAuthBusy(true);
+  clearMessage("authMessage");
+
+  try{
+    const {error}=await db.auth.signInWithPassword({
+      email,password
+    });
+    if(error) throw error;
+  }catch(error){
+    showMessage("authMessage",friendlyError(error));
+  }finally{
+    setAuthBusy(false);
+  }
+}
+
+async function logout(){
+  const {error}=await db.auth.signOut();
+  if(error){
+    showMessage("appMessage",friendlyError(error));
+  }
+}
+
+async function ensureProfile(userId){
+  const {data,error}=await db
+    .from("yawmi_profiles")
+    .select("daily_calorie_goal")
+    .eq("user_id",userId)
+    .maybeSingle();
+
+  if(error) throw error;
+
+  if(data){
+    goal=data.daily_calorie_goal;
+    return;
+  }
+
+  const {error:insertError}=await db
+    .from("yawmi_profiles")
+    .upsert({
+      user_id:userId,
+      daily_calorie_goal:1500
+    },{onConflict:"user_id"});
+
+  if(insertError) throw insertError;
+  goal=1500;
+}
+
+async function loadMeals(userId){
+  const {data,error}=await db
+    .from("yawmi_meals")
+    .select("id,food_name,meal_type,calories")
+    .eq("user_id",userId)
+    .eq("meal_date",today())
+    .order("created_at",{ascending:false});
+
+  if(error) throw error;
+  meals=data||[];
+}
+
+async function loadDashboard(user){
+  const version=++sessionVersion;
+  currentUser=user;
+
+  if(!user){
+    meals=[];
+    goal=1500;
+    $("dashboard").classList.add("hidden");
+    $("authCard").classList.remove("hidden");
+    return;
+  }
+
+  $("userEmail").textContent=user.email||"";
+  $("authCard").classList.add("hidden");
+  $("dashboard").classList.remove("hidden");
+  clearMessage("appMessage");
+
+  try{
+    await ensureProfile(user.id);
+    if(version!==sessionVersion) return;
+
+    await loadMeals(user.id);
+    if(version!==sessionVersion) return;
+
+    $("goal").value=goal;
+    render();
+  }catch(error){
+    if(version===sessionVersion){
+      showMessage("appMessage",
+        "تعذر تحميل بياناتك: "+friendlyError(error));
+    }
+  }
+}
+
+async function saveGoal(){
+  if(!currentUser) return;
+
+  const value=Number($("goal").value);
+
+  if(!Number.isInteger(value) ||
+     value<500 || value>10000){
+    showMessage("appMessage",
+      "أدخل رقمًا صحيحًا بين 500 و10000.");
+    return;
+  }
+
+  const userId=currentUser.id;
+  const {error}=await db
+    .from("yawmi_profiles")
+    .update({daily_calorie_goal:value})
+    .eq("user_id",userId);
+
+  if(error){
+    showMessage("appMessage",friendlyError(error));
+    return;
+  }
+
+  if(currentUser?.id!==userId) return;
   goal=value;
-  localStorage.setItem("yawmi_goal",goal);
+  clearMessage("appMessage");
   render();
 }
 
-function addMeal(){
-  const food=document.getElementById("food").value.trim();
-  const calories=Number(document.getElementById("calories").value);
-  const type=document.getElementById("mealType").value;
+async function addMeal(){
+  if(!currentUser) return;
 
-  if(!food||!Number.isFinite(calories)||calories<=0){
-    alert("اكتبي اسم الأكلة وسعراتها بشكل صحيح");
+  const food=$("food").value.trim();
+  const calories=Number($("calories").value);
+  const type=$("mealType").value;
+
+  if(!food || !Number.isFinite(calories) ||
+     calories<=0 || calories>99999999){
+    showMessage("appMessage",
+      "أدخل اسم الأكلة وعدد سعرات صحيحًا.");
     return;
   }
 
-  meals.push({id:crypto.randomUUID(),food,calories,type});
-  localStorage.setItem(storageKey(),JSON.stringify(meals));
-  document.getElementById("food").value="";
-  document.getElementById("calories").value="";
-  render();
+  const userId=currentUser.id;
+
+  const {error}=await db
+    .from("yawmi_meals")
+    .insert({
+      user_id:userId,
+      food_name:food,
+      calories,
+      meal_type:type,
+      meal_date:today()
+    });
+
+  if(error){
+    showMessage("appMessage",friendlyError(error));
+    return;
+  }
+
+  if(currentUser?.id!==userId) return;
+
+  $("food").value="";
+  $("calories").value="";
+  clearMessage("appMessage");
+
+  try{
+    await loadMeals(userId);
+    if(currentUser?.id===userId) render();
+  }catch(error){
+    showMessage("appMessage",friendlyError(error));
+  }
 }
 
-function deleteMeal(id){
-  meals=meals.filter(m=>m.id!==id);
-  localStorage.setItem(storageKey(),JSON.stringify(meals));
-  render();
+async function deleteMeal(id){
+  if(!currentUser) return;
+
+  const userId=currentUser.id;
+
+  const {error}=await db
+    .from("yawmi_meals")
+    .delete()
+    .eq("id",id)
+    .eq("user_id",userId);
+
+  if(error){
+    showMessage("appMessage",friendlyError(error));
+    return;
+  }
+
+  if(currentUser?.id!==userId) return;
+
+  try{
+    await loadMeals(userId);
+    if(currentUser?.id===userId) render();
+  }catch(error){
+    showMessage("appMessage",friendlyError(error));
+  }
 }
 
 function render(){
-  const total=meals.reduce((sum,m)=>sum+m.calories,0);
+  const total=meals.reduce(
+    (sum,m)=>sum+Number(m.calories),0
+  );
+
   const remaining=goal-total;
-  const percentage=Math.min(100,Math.max(0,total/goal*100));
+  const percentage=Math.min(
+    100,Math.max(0,total/goal*100)
+  );
 
-  document.getElementById("consumed").textContent=total;
-  document.getElementById("eaten").textContent=total;
-  document.getElementById("target").textContent=goal;
-  document.getElementById("remaining").textContent=remaining;
+  $("consumed").textContent=Math.round(total);
+  $("eaten").textContent=Math.round(total);
+  $("target").textContent=goal;
+  $("remaining").textContent=Math.round(remaining);
 
-  document.getElementById("circle").style.background=
-    `conic-gradient(#7954c8 ${percentage}%,#eee7fa ${percentage}%)`;
+  $("circle").style.background=
+    `conic-gradient(
+      #7954c8 ${percentage}%,
+      #eee7fa ${percentage}%
+    )`;
 
-  const list=document.getElementById("mealList");
+  const list=$("mealList");
   list.replaceChildren();
 
   if(!meals.length){
-    list.textContent="ما أضفتِ وجبات اليوم بعد 💜";
+    list.textContent="ما أضفت وجبات اليوم بعد 💜";
     return;
   }
 
@@ -224,13 +581,16 @@ function render(){
 
     const info=document.createElement("div");
     const name=document.createElement("strong");
-    name.textContent=m.food;
+    name.textContent=m.food_name;
+
     const detail=document.createElement("small");
-    detail.textContent=m.type+" • "+m.calories+" سعرة";
+    detail.textContent=
+      m.meal_type+" • "+m.calories+" سعرة";
+
     info.append(name,detail);
 
     const btn=document.createElement("button");
-    btn.className="delete";
+    btn.className="delete danger";
     btn.textContent="حذف";
     btn.onclick=()=>deleteMeal(m.id);
 
@@ -239,7 +599,13 @@ function render(){
   });
 }
 
-render();
+db.auth.onAuthStateChange((event,session)=>{
+  if(event==="INITIAL_SESSION" ||
+     event==="SIGNED_IN" ||
+     event==="SIGNED_OUT"){
+    loadDashboard(session?.user||null);
+  }
+});
 </script>
 </body>
 </html>
