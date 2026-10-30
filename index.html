@@ -243,6 +243,349 @@ footer{
   </button>
 </section>
 
+<!-- حاسبة يومي الغذائية -->
+<section class="card" id="nutritionCard">
+  <h2>💜 احسب احتياجك اليومي</h2>
+  <p class="notice">
+    أدخل بياناتك لحساب احتياجك التقريبي من السعرات.
+    الحاسبة مخصصة للبالغين.
+  </p>
+
+  <form id="nutritionForm">
+    <label for="nWeight">الوزن بالكيلوجرام</label>
+    <input id="nWeight" type="number"
+      min="20" max="350" step="0.1" required>
+
+    <label for="nHeight">الطول بالسنتيمتر</label>
+    <input id="nHeight" type="number"
+      min="100" max="230" step="0.1" required>
+
+    <label for="nAge">العمر</label>
+    <input id="nAge" type="number"
+      min="18" max="100" required>
+
+    <label for="nSex">الجنس للحساب</label>
+    <select id="nSex">
+      <option value="female">أنثى</option>
+      <option value="male">ذكر</option>
+    </select>
+
+    <label for="nActivity">مستوى النشاط</label>
+    <select id="nActivity">
+      <option value="sedentary">قليل الحركة</option>
+      <option value="light">نشاط خفيف</option>
+      <option value="moderate">نشاط متوسط</option>
+      <option value="active">نشاط عالٍ</option>
+    </select>
+
+    <label for="nGoal">الهدف</label>
+    <select id="nGoal">
+      <option value="lose">إنقاص الوزن</option>
+      <option value="maintain">المحافظة على الوزن</option>
+      <option value="gain">زيادة الوزن</option>
+    </select>
+
+    <label for="nCuisine">المطبخ المفضل</label>
+    <select id="nCuisine">
+      <option value="all">جميع المطابخ</option>
+      <option value="saudi">سعودي</option>
+      <option value="arabic">عربي</option>
+      <option value="international">عالمي</option>
+    </select>
+
+    <label for="nAllergies">الحساسية الغذائية</label>
+    <input id="nAllergies"
+      placeholder="مثال: حليب، مكسرات، بيض">
+
+    <label for="nDislikes">أطعمة لا أحبها</label>
+    <input id="nDislikes"
+      placeholder="مثال: طماطم، تونة">
+
+    <button type="submit">
+      احسب احتياجي واحفظ بياناتي
+    </button>
+  </form>
+
+  <div id="nutritionResult" class="notice"
+    role="status"></div>
+</section>
+
+<section class="card">
+  <h2>🍽️ وش آكل اليوم؟</h2>
+  <p class="notice">
+    اقتراحات من مطابخ مختلفة حسب السعرات المتبقية.
+  </p>
+  <button type="button" id="suggestMeal">
+    اقترح لي وجبة
+  </button>
+  <div id="suggestionResult" class="notice"
+    role="status"></div>
+</section>
+
+<script>
+(function(){
+  const $n=id=>document.getElementById(id);
+
+  const recipes=[
+    {name:"كبسة دجاج",cuisine:"saudi",
+     calories:550,ingredients:["دجاج","أرز"],
+     portion:"150 جم أرز مطبوخ و150 جم دجاج مع إضافات الطبخ"},
+
+    {name:"جريش بالدجاج",cuisine:"saudi",
+     calories:430,ingredients:["قمح","دجاج","حليب"],
+     portion:"طبق متوسط 300 جم"},
+
+    {name:"شاورما دجاج",cuisine:"arabic",
+     calories:450,ingredients:["دجاج","خبز","ثوم"],
+     portion:"ساندويتش متوسط"},
+
+    {name:"ورق عنب بالأرز",cuisine:"arabic",
+     calories:300,ingredients:["ورق عنب","أرز"],
+     portion:"8 قطع متوسطة"},
+
+    {name:"مكرونة بالدجاج",cuisine:"international",
+     calories:490,ingredients:["مكرونة","دجاج","قمح"],
+     portion:"طبق متوسط 300 جم"},
+
+    {name:"سوشي سلمون",cuisine:"international",
+     calories:330,ingredients:["سلمون","أرز","سمك"],
+     portion:"8 قطع صغيرة"},
+
+    {name:"دجاج مشوي وبطاطس",cuisine:"international",
+     calories:420,ingredients:["دجاج","بطاطس"],
+     portion:"150 جم دجاج و200 جم بطاطس"},
+
+    {name:"أرز مع لحم مشوي",cuisine:"arabic",
+     calories:520,ingredients:["أرز","لحم"],
+     portion:"150 جم أرز و120 جم لحم"}
+  ];
+
+  let lastSuggestion=-1;
+  let nutritionReady=false;
+
+  function selectedFoods(id){
+    return $n(id).value.split(/[,،]/)
+      .map(x=>x.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  function matchesFood(ingredient,excluded){
+    const aliases={
+      "حليب":["حليب","لبن","زبادي","جبن","قشطة","كريمة"],
+      "مكسرات":["مكسرات","لوز","فستق","جوز","كاجو"],
+      "بيض":["بيض"],
+      "سمك":["سمك","سلمون","تونة"],
+      "قمح":["قمح","خبز","مكرونة"]
+    };
+
+    return excluded.some(word=>{
+      const terms=aliases[word]||[word];
+      return terms.some(term=>
+        ingredient.includes(term)||
+        term.includes(ingredient)
+      );
+    });
+  }
+
+  async function loadNutrition(){
+    if(typeof user==="undefined"||!user)return;
+
+    const {data,error}=await client
+      .from("yawmi_nutrition")
+      .select("*")
+      .eq("user_id",user.id)
+      .maybeSingle();
+
+    if(error){
+      $n("nutritionResult").textContent=
+        "تعذر تحميل الملف الغذائي: "+error.message;
+      return;
+    }
+
+    if(!data)return;
+
+    $n("nWeight").value=data.weight_kg??"";
+    $n("nHeight").value=data.height_cm??"";
+    $n("nAge").value=data.age??"";
+    $n("nSex").value=data.sex||"female";
+    $n("nActivity").value=data.activity_level||"sedentary";
+    $n("nGoal").value=data.weight_goal||"maintain";
+    $n("nCuisine").value=data.preferred_cuisines?.[0]||"all";
+    $n("nAllergies").value=(data.allergies||[]).join("، ");
+    $n("nDislikes").value=(data.disliked_foods||[]).join("، ");
+
+    nutritionReady=true;
+    calculate(false);
+  }
+
+  async function calculate(save){
+    const w=Number($n("nWeight").value);
+    const h=Number($n("nHeight").value);
+    const age=Number($n("nAge").value);
+    const sex=$n("nSex").value;
+
+    if(w<20||w>350||h<100||h>230||
+       age<18||age>100){
+      $n("nutritionResult").textContent=
+        "تحقق من الوزن والطول والعمر.";
+      return;
+    }
+
+    const factors={
+      sedentary:1.2,
+      light:1.375,
+      moderate:1.55,
+      active:1.725
+    };
+
+    const bmr=10*w+6.25*h-5*age+
+      (sex==="male"?5:-161);
+
+    const maintenance=Math.round(
+      bmr*factors[$n("nActivity").value]
+    );
+
+    const weightGoal=$n("nGoal").value;
+    const adjustment=
+      weightGoal==="lose"?-350:
+      weightGoal==="gain"?250:0;
+
+    const target=Math.round(
+      maintenance+adjustment
+    );
+
+    if(target<1200){
+      $n("nutritionResult").textContent=
+        "الهدف المحسوب منخفض؛ يُفضّل مراجعة مختص تغذية لتحديد هدف مناسب.";
+      return;
+    }
+
+    $n("nutritionResult").textContent=
+      "للمحافظة على الوزن: "+maintenance+
+      " سعرة يوميًا. هدفك التقديري: "+
+      target+" سعرة يوميًا.";
+
+    nutritionReady=true;
+
+    if(!save)return;
+    if(typeof user==="undefined"||!user)return;
+
+    const uid=user.id;
+
+    const {error}=await client
+      .from("yawmi_nutrition")
+      .upsert({
+        user_id:uid,
+        weight_kg:w,
+        height_cm:h,
+        age,
+        sex,
+        activity_level:$n("nActivity").value,
+        weight_goal:weightGoal,
+        preferred_cuisines:[$n("nCuisine").value],
+        allergies:selectedFoods("nAllergies"),
+        disliked_foods:selectedFoods("nDislikes"),
+        updated_at:new Date().toISOString()
+      },{onConflict:"user_id"});
+
+    if(error){
+      $n("nutritionResult").textContent=
+        "تعذر حفظ البيانات: "+error.message;
+      return;
+    }
+
+    const saved=await client
+      .from("yawmi_profiles")
+      .upsert({
+        user_id:uid,
+        daily_calorie_goal:target
+      },{onConflict:"user_id"});
+
+    if(saved.error){
+      $n("nutritionResult").textContent=
+        "تم حفظ بيانات الجسم، لكن تعذر حفظ هدف السعرات: "+
+        saved.error.message;
+      return;
+    }
+
+    if(user?.id!==uid)return;
+
+    goal=target;
+    $n("goal").value=target;
+    render();
+
+    $n("nutritionResult").textContent=
+      "تم الحفظ 💜 احتياج المحافظة: "+
+      maintenance+" سعرة، وهدفك: "+
+      target+" سعرة يوميًا.";
+  }
+
+  $n("nutritionForm").addEventListener(
+    "submit",async e=>{
+      e.preventDefault();
+      await calculate(true);
+    }
+  );
+
+  $n("suggestMeal").addEventListener("click",()=>{
+    if(!nutritionReady){
+      $n("suggestionResult").textContent=
+        "احسب احتياجك أولًا لتحصل على اقتراحات مناسبة.";
+      return;
+    }
+
+    const cuisine=$n("nCuisine").value;
+    const excluded=[
+      ...selectedFoods("nAllergies"),
+      ...selectedFoods("nDislikes")
+    ];
+
+    const consumed=meals.reduce(
+      (s,m)=>s+Number(m.calories),0
+    );
+    const remaining=Math.max(0,goal-consumed);
+
+    const available=recipes.filter(r=>
+      (cuisine==="all"||r.cuisine===cuisine)&&
+      r.calories<=remaining&&
+      !r.ingredients.some(i=>matchesFood(i,excluded))
+    );
+
+    if(!available.length){
+      $n("suggestionResult").textContent=
+        "ما لقيت وصفة مناسبة للمتبقي وتفضيلاتك. جرّب تغيير المطبخ أو راجع خياراتك الغذائية.";
+      return;
+    }
+
+    lastSuggestion=(lastSuggestion+1)%available.length;
+    const recipe=available[lastSuggestion];
+
+    $n("suggestionResult").textContent=
+      "اقتراحك: "+recipe.name+
+      " 💜 الكمية: "+recipe.portion+
+      " — حوالي "+recipe.calories+
+      " سعرة حرارية.";
+  });
+
+  client.auth.onAuthStateChange((event,session)=>{
+    if(event==="SIGNED_IN"||
+       event==="INITIAL_SESSION"){
+      if(session?.user){
+        setTimeout(loadNutrition,300);
+      }
+    }
+    if(event==="SIGNED_OUT"){
+      nutritionReady=false;
+      lastSuggestion=-1;
+      $n("nutritionForm").reset();
+      $n("nutritionResult").textContent="";
+      $n("suggestionResult").textContent="";
+    }
+  });
+})();
+</script>
+<!-- نهاية إضافة الحاسبة -->
+
 <section class="card">
   <h2>📋 سجل وجبات اليوم</h2>
   <div id="mealList"></div>
